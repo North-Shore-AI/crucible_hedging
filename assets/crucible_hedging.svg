@@ -1,0 +1,42 @@
+<svg width="200" height="231" viewBox="0 0 200 231" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad_crucible_hedging" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#9370DB;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#9370DB;stop-opacity:0.7" />
+    </linearGradient>
+  </defs>
+
+  <!-- Hexagon shape (Elixir style) -->
+  <path d="M 100,5 L 190,62.5 L 190,177.5 L 100,235 L 10,177.5 L 10,62.5 Z"
+        fill="url(#grad_crucible_hedging)"
+        stroke="#FFFFFF"
+        stroke-width="3"/>
+
+  <!-- Inner hexagon for depth -->
+  <path d="M 100,25 L 170,67.5 L 170,172.5 L 100,215 L 30,172.5 L 30,67.5 Z"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="1"
+        opacity="0.3"/>
+
+  <!-- Letter/Icon in center -->
+  <text x="100" y="135"
+        font-family="Arial, sans-serif"
+        font-size="80"
+        font-weight="bold"
+        fill="#FFFFFF"
+        text-anchor="middle">
+    H
+  </text>
+
+  <!-- Small text at bottom -->
+  <text x="100" y="210"
+        font-family="Arial, sans-serif"
+        font-size="14"
+        font-weight="normal"
+        fill="#FFFFFF"
+        text-anchor="middle"
+        opacity="0.9">
+    Hedging
+  </text>
+</svg>

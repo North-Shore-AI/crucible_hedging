@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/crucible_hedging.svg" alt="Hedging" width="150"/>
+</p>
+
 # CrucibleHedging
 
 **Request hedging for tail latency reduction in distributed systems.**
