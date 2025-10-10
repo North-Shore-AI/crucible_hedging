@@ -60,6 +60,8 @@ defmodule CrucibleHedging.MixProject do
       source_url: @source_url,
       homepage_url: @source_url,
       extras: ["README.md", "CHANGELOG.md"],
+      assets: %{"assets" => "assets"},
+      logo: "assets/crucible_hedging.svg",
       before_closing_head_tag: &mermaid_config/1
     ]
   end
