@@ -42,11 +42,11 @@ defmodule CrucibleHedging.MixProject do
     [
       name: "crucible_hedging",
       description: description(),
-      files: ~w(lib mix.exs README.md LICENSE),
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
-        "Online documentation" => "https://hexdocs.pm/hedging"
+        "Online documentation" => "https://hexdocs.pm/crucible_hedging"
       },
       maintainers: ["nshkrdotcom"]
     ]

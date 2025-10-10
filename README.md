@@ -370,7 +370,7 @@ mix docs
 
 ## License
 
-MIT
+MIT License - see [LICENSE](https://github.com/North-Shore-AI/crucible_hedging/blob/main/LICENSE) file for details
 
 ## Contributing
 
