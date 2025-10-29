@@ -4,6 +4,11 @@
 
 # CrucibleHedging
 
+[![Elixir](https://img.shields.io/badge/elixir-1.14+-purple.svg)](https://elixir-lang.org)
+[![Hex.pm](https://img.shields.io/hexpm/v/crucible_hedging.svg)](https://hex.pm/packages/crucible_hedging)
+[![Documentation](https://img.shields.io/badge/docs-hexdocs-purple.svg)](https://hexdocs.pm/crucible_hedging)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/North-Shore-AI/crucible_hedging/blob/main/LICENSE)
+
 **Request hedging for tail latency reduction in distributed systems.**
 
 Hedging reduces P99 latency by 75-96% with only 5-10% cost overhead by sending backup requests after a delay. Based on Google's "The Tail at Scale" research (Dean & Barroso, 2013).
