@@ -127,13 +127,22 @@ defmodule CrucibleHedging.Config do
 
   Returns `{:ok, validated_opts}` or `{:error, validation_error}`.
 
-  ## Example
+  ## Examples
 
-      iex> CrucibleHedging.Config.validate(strategy: :percentile, percentile: 95)
-      {:ok, [strategy: :percentile, percentile: 95, ...]}
+      iex> {:ok, config} = CrucibleHedging.Config.validate(strategy: :percentile, percentile: 95)
+      iex> config[:strategy]
+      :percentile
+      iex> config[:percentile]
+      95
 
-      iex> CrucibleHedging.Config.validate(strategy: :invalid)
-      {:error, %NimbleOptions.ValidationError{...}}
+      iex> {:ok, config} = CrucibleHedging.Config.validate(strategy: :fixed, delay_ms: 200)
+      iex> config[:strategy]
+      :fixed
+      iex> config[:delay_ms]
+      200
+
+      iex> match?({:error, _}, CrucibleHedging.Config.validate(strategy: :invalid))
+      true
   """
   @spec validate(keyword()) :: {:ok, keyword()} | {:error, NimbleOptions.ValidationError.t()}
   def validate(opts) when is_list(opts) do
@@ -153,13 +162,15 @@ defmodule CrucibleHedging.Config do
   @doc """
   Validates hedging configuration options, raising on error.
 
-  ## Example
+  ## Examples
 
-      iex> CrucibleHedging.Config.validate!(strategy: :percentile, percentile: 95)
-      [strategy: :percentile, percentile: 95, ...]
+      iex> config = CrucibleHedging.Config.validate!(strategy: :percentile, percentile: 95)
+      iex> config[:strategy]
+      :percentile
 
-      iex> CrucibleHedging.Config.validate!(strategy: :invalid)
-      ** (NimbleOptions.ValidationError) invalid value for :strategy option
+      iex> config = CrucibleHedging.Config.validate!(strategy: :workload_aware, base_delay: 150)
+      iex> config[:base_delay]
+      150
   """
   @spec validate!(keyword()) :: keyword()
   def validate!(opts) when is_list(opts) do
@@ -248,10 +259,17 @@ defmodule CrucibleHedging.Config do
   @doc """
   Merges user options with defaults.
 
-  ## Example
+  ## Examples
 
-      iex> CrucibleHedging.Config.with_defaults([strategy: :fixed, delay_ms: 200])
-      [strategy: :fixed, delay_ms: 200, percentile: 95, ...]
+      iex> opts = CrucibleHedging.Config.with_defaults([strategy: :fixed, delay_ms: 200])
+      iex> opts[:strategy]
+      :fixed
+      iex> opts[:delay_ms]
+      200
+      iex> opts[:percentile]
+      95
+      iex> opts[:timeout_ms]
+      30_000
   """
   @spec with_defaults(keyword()) :: keyword()
   def with_defaults(opts) when is_list(opts) do

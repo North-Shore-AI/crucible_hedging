@@ -182,8 +182,14 @@ defmodule Examples.MultiTier do
 
     multi_tier_results =
       Enum.map(1..10, fn _ ->
-        {:ok, _result, metadata} = CrucibleHedging.MultiLevel.execute(multi_tier_tiers)
-        %{latency: metadata.total_latency, cost: metadata.total_cost}
+        case CrucibleHedging.MultiLevel.execute(multi_tier_tiers, timeout_ms: 5_000) do
+          {:ok, _result, metadata} ->
+            %{latency: metadata.total_latency, cost: metadata.total_cost}
+
+          {:error, _reason} ->
+            # If all tiers fail, treat as high latency/cost
+            %{latency: 2000, cost: 0.03}
+        end
       end)
 
     # Calculate statistics

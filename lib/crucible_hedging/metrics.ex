@@ -72,7 +72,7 @@ defmodule CrucibleHedging.Metrics do
   def get_stats do
     case GenServer.whereis(__MODULE__) do
       nil -> {:error, :not_started}
-      _pid -> GenServer.call(__MODULE__, :get_stats)
+      _pid -> {:ok, GenServer.call(__MODULE__, :get_stats)}
     end
   end
 
