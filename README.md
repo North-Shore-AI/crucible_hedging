@@ -39,7 +39,7 @@ LLM inference exhibits high latency variance due to:
 
 ## Features
 
-- **Multiple Strategies**: Fixed, Percentile-based, Adaptive (Thompson Sampling), Workload-aware
+- **Multiple Strategies**: Fixed, Percentile-based, Adaptive (Thompson Sampling), Workload-aware, Exponential Backoff
 - **Multi-Tier Hedging**: Cascade across providers (GPT-4 → GPT-3.5 → Gemini)
 - **Cost Optimization**: Budget-aware hedging with cost tracking
 - **Adaptive Learning**: Online learning to minimize regret
@@ -53,7 +53,7 @@ Add `hedging` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:crucible_hedging, "~> 0.1.0"}
+    {:crucible_hedging, "~> 0.2.0"}
   ]
 end
 ```
@@ -177,6 +177,69 @@ CrucibleHedging.request(
 - Cons: Requires request metadata
 - Use Case: Diverse request types
 
+### 5. Exponential Backoff (New in v0.2.0)
+
+Adaptive strategy that adjusts delay based on success/failure patterns, similar to TCP congestion control.
+
+```elixir
+# Start exponential backoff strategy
+{:ok, _pid} =
+  CrucibleHedging.Strategy.ExponentialBackoff.start_link(
+    name: :api_backoff,
+    exponential_base_delay: 100,
+    exponential_min_delay: 25,
+    exponential_max_delay: 5000,
+    exponential_increase_factor: 1.5,
+    exponential_decrease_factor: 0.9,
+    exponential_error_factor: 2.0
+  )
+
+# Strategy adapts to service health (isolated per backend via strategy_name)
+CrucibleHedging.request(
+  fn -> rate_limited_api() end,
+  strategy: :exponential_backoff,
+  strategy_name: :api_backoff
+)
+```
+
+**Per-backend isolation (recommended when you hedge multiple services):**
+
+```elixir
+# Start separate instances for two backends
+{:ok, _} = CrucibleHedging.Strategy.ExponentialBackoff.start_link(name: :backend_a)
+{:ok, _} = CrucibleHedging.Strategy.ExponentialBackoff.start_link(name: :backend_b)
+
+# Each backend uses its own stateful backoff
+CrucibleHedging.request(fn -> call_backend_a() end,
+  strategy: :exponential_backoff,
+  strategy_name: :backend_a
+)
+
+CrucibleHedging.request(fn -> call_backend_b() end,
+  strategy: :exponential_backoff,
+  strategy_name: :backend_b
+)
+```
+
+**Characteristics:**
+- Pros: Adapts to service health, reduces load during failures, no warmup needed; reacts to errors as well as hedge outcomes
+- Cons: Slower to adapt than percentile-based
+- Use Case: Rate-limited APIs, services with variable health, cost-sensitive workloads
+
+**Algorithm:**
+- On success: delay × 0.9 (become more aggressive)
+- On failure: delay × 1.5 (back off)
+- On error: delay × 2.0 (aggressive backoff)
+- Clamped to [min_delay, max_delay]
+
+**Request options for exponential backoff:**
+- `:strategy_name` — optional process name to isolate state per backend (defaults to strategy name)
+- `:exponential_base_delay` — initial delay (default: 100)
+- `:exponential_min_delay` / `:exponential_max_delay` — bounds (defaults: 10 / 5000)
+- `:exponential_increase_factor` — multiplier on failures (default: 1.5)
+- `:exponential_decrease_factor` — multiplier on successes (default: 0.9)
+- `:exponential_error_factor` — multiplier on errors (default: 2.0)
+
 ## Multi-Tier Hedging
 
 Cascade across providers for cost optimization:
@@ -286,7 +349,8 @@ CrucibleHedging.request(fn -> api_call() end, config)
 ```elixir
 [
   # Strategy selection
-  strategy: :percentile,              # :fixed, :percentile, :adaptive, :workload_aware
+  strategy: :percentile,              # :fixed, :percentile, :adaptive, :workload_aware, :exponential_backoff
+  strategy_name: :my_backend,         # Optional per-backend state isolation (especially for exponential_backoff)
 
   # Fixed strategy
   delay_ms: 100,                      # Fixed delay in ms
@@ -306,6 +370,14 @@ CrucibleHedging.request(fn -> api_call() end, config)
   model_complexity: :complex,         # :simple, :medium, :complex
   time_of_day: :peak,                 # :peak, :normal, :off_peak
   priority: :high,                    # :low, :normal, :high
+
+  # Exponential backoff strategy
+  exponential_base_delay: 100,        # Initial delay in ms
+  exponential_min_delay: 10,          # Minimum delay
+  exponential_max_delay: 5000,        # Maximum delay
+  exponential_increase_factor: 1.5,   # Multiplier when hedges lose
+  exponential_decrease_factor: 0.9,   # Multiplier when hedges win or hedging not needed
+  exponential_error_factor: 2.0,      # Multiplier on errors
 
   # General options
   max_hedges: 1,                      # Max backup requests
@@ -387,4 +459,3 @@ Based on research by:
 - Jeffrey Dean & Luiz André Barroso (Google) - "The Tail at Scale"
 - Mike Hostetler - req_llm library integration patterns
 - ElixirAI Research Initiative
-

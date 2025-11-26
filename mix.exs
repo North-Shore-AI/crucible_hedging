@@ -1,7 +1,7 @@
 defmodule CrucibleHedging.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @source_url "https://github.com/North-Shore-AI/crucible_hedging"
 
   def project do
@@ -14,6 +14,7 @@ defmodule CrucibleHedging.MixProject do
       description: description(),
       package: package(),
       docs: docs(),
+      dialyzer: dialyzer(),
       source_url: @source_url,
       homepage_url: @source_url,
       name: "CrucibleHedging"
@@ -31,7 +32,8 @@ defmodule CrucibleHedging.MixProject do
     [
       {:telemetry, "~> 1.2"},
       {:nimble_options, "~> 1.0"},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
     ]
   end
 
@@ -64,6 +66,12 @@ defmodule CrucibleHedging.MixProject do
       assets: %{"assets" => "assets"},
       logo: "assets/crucible_hedging.svg",
       before_closing_head_tag: &mermaid_config/1
+    ]
+  end
+
+  defp dialyzer do
+    [
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
     ]
   end
 

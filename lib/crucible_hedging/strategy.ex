@@ -56,5 +56,6 @@ defmodule CrucibleHedging.Strategy do
   def get_strategy(:percentile), do: CrucibleHedging.Strategy.Percentile
   def get_strategy(:adaptive), do: CrucibleHedging.Strategy.Adaptive
   def get_strategy(:workload_aware), do: CrucibleHedging.Strategy.WorkloadAware
+  def get_strategy(:exponential_backoff), do: CrucibleHedging.Strategy.ExponentialBackoff
   def get_strategy(module) when is_atom(module), do: module
 end

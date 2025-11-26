@@ -7,13 +7,14 @@ defmodule CrucibleHedging.Config do
 
   ## Schema
 
-  - `:strategy` - Strategy to use (`:fixed`, `:percentile`, `:adaptive`, `:workload_aware`)
+  - `:strategy` - Strategy to use (`:fixed`, `:percentile`, `:adaptive`, `:workload_aware`, `:exponential_backoff`)
   - `:delay_ms` - Fixed delay in milliseconds (for `:fixed` strategy)
   - `:percentile` - Target percentile (for `:percentile` strategy, default: 95)
   - `:max_hedges` - Maximum number of backup requests (default: 1)
   - `:timeout_ms` - Total request timeout (default: 30_000)
   - `:enable_cancellation` - Cancel slower requests (default: true)
   - `:telemetry_prefix` - Telemetry event prefix (default: `[:crucible_hedging]`)
+  - `:strategy_name` - Optional process name for isolating state per backend
 
   ## Strategy-specific Options
 
@@ -35,6 +36,14 @@ defmodule CrucibleHedging.Config do
   - `:model_complexity` - `:simple`, `:medium`, or `:complex`
   - `:time_of_day` - `:peak`, `:normal`, or `:off_peak`
 
+  ### Exponential Backoff Strategy
+  - `:exponential_base_delay` - Initial delay (default: 100)
+  - `:exponential_min_delay` - Minimum delay floor (default: 10)
+  - `:exponential_max_delay` - Maximum delay ceiling (default: 5000)
+  - `:exponential_increase_factor` - Failure multiplier (default: 1.5)
+  - `:exponential_decrease_factor` - Success multiplier (default: 0.9)
+  - `:exponential_error_factor` - Error multiplier (default: 2.0)
+
   ## Example
 
       config = CrucibleHedging.Config.validate!([
@@ -46,9 +55,15 @@ defmodule CrucibleHedging.Config do
 
   @schema NimbleOptions.new!(
             strategy: [
-              type: {:in, [:fixed, :percentile, :adaptive, :workload_aware]},
+              type:
+                {:in, [:fixed, :percentile, :adaptive, :workload_aware, :exponential_backoff]},
               default: :percentile,
               doc: "Hedging strategy to use"
+            ],
+            strategy_name: [
+              type: :atom,
+              doc:
+                "Optional registered name for strategy process (useful for per-backend isolation)"
             ],
             delay_ms: [
               type: :non_neg_integer,
@@ -99,6 +114,36 @@ defmodule CrucibleHedging.Config do
             priority: [
               type: {:in, [:low, :normal, :high]},
               doc: "Request priority for :workload_aware strategy"
+            ],
+            exponential_min_delay: [
+              type: :non_neg_integer,
+              default: 10,
+              doc: "Minimum delay for :exponential_backoff strategy"
+            ],
+            exponential_max_delay: [
+              type: :non_neg_integer,
+              default: 5000,
+              doc: "Maximum delay for :exponential_backoff strategy"
+            ],
+            exponential_base_delay: [
+              type: :non_neg_integer,
+              default: 100,
+              doc: "Initial delay for :exponential_backoff strategy"
+            ],
+            exponential_increase_factor: [
+              type: :float,
+              default: 1.5,
+              doc: "Failure increase factor for :exponential_backoff strategy"
+            ],
+            exponential_decrease_factor: [
+              type: :float,
+              default: 0.9,
+              doc: "Success decrease factor for :exponential_backoff strategy"
+            ],
+            exponential_error_factor: [
+              type: :float,
+              default: 2.0,
+              doc: "Error increase factor for :exponential_backoff strategy"
             ],
             max_hedges: [
               type: :pos_integer,
@@ -198,6 +243,9 @@ defmodule CrucibleHedging.Config do
       :workload_aware ->
         validate_workload_aware_strategy(opts)
 
+      :exponential_backoff ->
+        validate_exponential_backoff_strategy(opts)
+
       _ ->
         :ok
     end
@@ -251,6 +299,55 @@ defmodule CrucibleHedging.Config do
     :ok
   end
 
+  defp validate_exponential_backoff_strategy(opts) do
+    min_delay = Keyword.get(opts, :exponential_min_delay, 10)
+    max_delay = Keyword.get(opts, :exponential_max_delay, 5000)
+    base_delay = Keyword.get(opts, :exponential_base_delay, 100)
+    increase_factor = Keyword.get(opts, :exponential_increase_factor, 1.5)
+    decrease_factor = Keyword.get(opts, :exponential_decrease_factor, 0.9)
+    error_factor = Keyword.get(opts, :exponential_error_factor, 2.0)
+
+    cond do
+      min_delay >= max_delay ->
+        {:error,
+         %ArgumentError{
+           message:
+             ":exponential_min_delay must be less than :exponential_max_delay, got min=#{min_delay}, max=#{max_delay}"
+         }}
+
+      base_delay < min_delay or base_delay > max_delay ->
+        {:error,
+         %ArgumentError{
+           message:
+             ":exponential_base_delay must be within [min, max], got base=#{base_delay}, min=#{min_delay}, max=#{max_delay}"
+         }}
+
+      increase_factor <= 1.0 ->
+        {:error,
+         %ArgumentError{
+           message:
+             ":exponential_increase_factor must be greater than 1.0 for backoff, got #{increase_factor}"
+         }}
+
+      decrease_factor >= 1.0 or decrease_factor <= 0.0 ->
+        {:error,
+         %ArgumentError{
+           message:
+             ":exponential_decrease_factor must be between 0.0 and 1.0, got #{decrease_factor}"
+         }}
+
+      error_factor <= 1.0 ->
+        {:error,
+         %ArgumentError{
+           message:
+             ":exponential_error_factor must be greater than 1.0 for backoff, got #{error_factor}"
+         }}
+
+      true ->
+        :ok
+    end
+  end
+
   @doc """
   Returns the NimbleOptions schema for documentation purposes.
   """
@@ -275,12 +372,19 @@ defmodule CrucibleHedging.Config do
   def with_defaults(opts) when is_list(opts) do
     defaults = [
       strategy: :percentile,
+      strategy_name: nil,
       percentile: 95,
       window_size: 1000,
       initial_delay: 100,
       delay_candidates: [50, 100, 200, 500, 1000],
       learning_rate: 0.1,
       base_delay: 100,
+      exponential_base_delay: 100,
+      exponential_min_delay: 10,
+      exponential_max_delay: 5000,
+      exponential_increase_factor: 1.5,
+      exponential_decrease_factor: 0.9,
+      exponential_error_factor: 2.0,
       max_hedges: 1,
       timeout_ms: 30_000,
       enable_cancellation: true,

@@ -91,6 +91,9 @@ defmodule CrucibleHedging do
   @spec request(request_fn(), opts()) :: result()
   def request(request_fn, opts \\ []) when is_function(request_fn, 0) do
     opts = Keyword.merge(@default_opts, opts)
+    strategy = CrucibleHedging.Strategy.get_strategy(opts[:strategy])
+    strategy_name = Keyword.get(opts, :strategy_name) || Keyword.get(opts, :name) || strategy
+
     start_time = System.monotonic_time(:millisecond)
 
     telemetry_prefix = Keyword.fetch!(opts, :telemetry_prefix)
@@ -104,7 +107,17 @@ defmodule CrucibleHedging do
     )
 
     try do
-      result = execute_with_hedging(request_fn, opts, start_time, request_id, telemetry_prefix)
+      # Pass strategy_name through for strategy-specific state selection
+      strategy_opts = Keyword.put(opts, :strategy_name, strategy_name)
+
+      result =
+        execute_with_hedging(
+          request_fn,
+          strategy_opts,
+          start_time,
+          request_id,
+          telemetry_prefix
+        )
 
       # Emit telemetry stop event
       end_time = System.monotonic_time(:millisecond)
@@ -112,6 +125,8 @@ defmodule CrucibleHedging do
 
       case result do
         {:ok, value, metadata} ->
+          metadata = Map.put(metadata, :strategy_name, strategy_name)
+
           :telemetry.execute(
             telemetry_prefix ++ [:request, :stop],
             %{duration: duration},
@@ -119,12 +134,13 @@ defmodule CrucibleHedging do
           )
 
           # Update strategy with observed metrics
-          strategy = CrucibleHedging.Strategy.get_strategy(opts[:strategy])
           strategy.update(metadata, nil)
 
           {:ok, value, Map.put(metadata, :total_latency, duration)}
 
         {:error, _reason} = error ->
+          strategy.update(%{error: error, strategy_name: strategy_name}, nil)
+
           :telemetry.execute(
             telemetry_prefix ++ [:request, :exception],
             %{duration: duration},
