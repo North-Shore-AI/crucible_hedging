@@ -53,7 +53,7 @@ Add `hedging` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:crucible_hedging, "~> 0.2.0"}
+    {:crucible_hedging, "~> 0.3.0"}
   ]
 end
 ```
@@ -63,11 +63,14 @@ Or install from GitHub:
 ```elixir
 def deps do
   [
+    {:crucible_hedging, github: "North-Shore-AI/crucible_hedging"}
   ]
 end
 ```
 
 ## Quick Start
+
+### Direct Usage
 
 ```elixir
 # Simple fixed delay hedging
@@ -89,6 +92,51 @@ end
   fn -> make_api_call() end,
   strategy: :adaptive,
   delay_candidates: [50, 100, 200, 500]
+)
+```
+
+### Pipeline Stage Usage (New in v0.3.0)
+
+Use with CrucibleIR for declarative configuration:
+
+```elixir
+# Define hedging configuration using CrucibleIR
+config = %CrucibleIR.Reliability.Hedging{
+  strategy: :percentile,
+  percentile: 95,
+  max_hedges: 1,
+  budget_percent: 10.0
+}
+
+# Create pipeline context
+context = %{
+  experiment: %{reliability: %{hedging: config}},
+  request_fn: fn -> make_api_call() end
+}
+
+# Run the hedging stage
+{:ok, updated_context} = CrucibleHedging.Stage.run(context)
+
+# Access results
+result = updated_context.result
+metadata = updated_context.hedging_metadata
+```
+
+### Using IR Config with Direct API
+
+```elixir
+# Convert IR config to options
+ir_config = %CrucibleIR.Reliability.Hedging{
+  strategy: :fixed,
+  delay_ms: 100
+}
+
+opts = CrucibleHedging.from_ir_config(ir_config)
+
+# Use with request/2
+{:ok, result, metadata} = CrucibleHedging.request(
+  fn -> make_api_call() end,
+  opts
 )
 ```
 

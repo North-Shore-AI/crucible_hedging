@@ -1,7 +1,7 @@
 defmodule CrucibleHedging.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @source_url "https://github.com/North-Shore-AI/crucible_hedging"
 
   def project do
@@ -30,6 +30,7 @@ defmodule CrucibleHedging.MixProject do
 
   defp deps do
     [
+      {:crucible_ir, "~> 0.1.1"},
       {:telemetry, "~> 1.2"},
       {:nimble_options, "~> 1.0"},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},

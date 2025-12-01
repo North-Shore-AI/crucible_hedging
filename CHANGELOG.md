@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-11-26
+
+### Added
+- **CrucibleIR Integration**: Added dependency on `crucible_ir ~> 0.1.1` for unified configuration
+- **Pipeline Stage Interface**: New `CrucibleHedging.Stage` module implementing pipeline stage pattern
+  - Accepts `CrucibleIR.Reliability.Hedging` configuration from experiment context
+  - Provides `run/2` and `describe/1` functions for pipeline integration
+  - Supports all hedging strategies through IR configuration
+  - Returns structured context with results and metadata
+- **IR Config Helper**: New `from_ir_config/1` function to convert IR structs to keyword options
+- **Strategy Options Mapping**: Support for strategy-specific options from IR config options map
+- **Comprehensive Stage Tests**: Full test coverage for Stage module with all strategies
+
+### Enhanced
+- Main `CrucibleHedging` module now supports IR config conversion
+- Stage module provides detailed metadata including strategy used
+- Error handling for missing or invalid IR configurations
+- Documentation with IR config usage examples
+
+### Documentation
+- Added Stage usage examples to README
+- Documented IR config integration patterns
+- Added docstrings for all new public functions
+
 ## [0.2.0] - 2025-11-25
 
 ### Added

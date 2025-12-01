@@ -1,6 +1,8 @@
 defmodule CrucibleHedging.MultiLevelTest do
   use ExUnit.Case
 
+  import ExUnit.CaptureLog
+
   describe "execute/2" do
     test "returns first tier result when fast" do
       tiers = [
@@ -129,10 +131,12 @@ defmodule CrucibleHedging.MultiLevelTest do
         }
       ]
 
-      {:ok, result, metadata} = CrucibleHedging.MultiLevel.execute(tiers)
+      capture_log(fn ->
+        {:ok, result, metadata} = CrucibleHedging.MultiLevel.execute(tiers)
 
-      assert result == :backup_result
-      assert metadata.tier == :backup_tier
+        assert result == :backup_result
+        assert metadata.tier == :backup_tier
+      end)
     end
   end
 end

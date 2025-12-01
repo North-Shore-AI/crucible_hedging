@@ -72,6 +72,57 @@ defmodule CrucibleHedging do
   ]
 
   @doc """
+  Creates hedging options from a CrucibleIR.Reliability.Hedging configuration struct.
+
+  This function converts IR hedging configuration into keyword list options
+  suitable for use with `request/2`.
+
+  ## Examples
+
+      iex> config = %CrucibleIR.Reliability.Hedging{strategy: :fixed, delay_ms: 100}
+      iex> opts = CrucibleHedging.from_ir_config(config)
+      iex> opts[:strategy]
+      :fixed
+      iex> opts[:delay_ms]
+      100
+
+      iex> config = %CrucibleIR.Reliability.Hedging{strategy: :percentile, percentile: 95}
+      iex> opts = CrucibleHedging.from_ir_config(config)
+      iex> opts[:strategy]
+      :percentile
+      iex> opts[:percentile]
+      95
+  """
+  @spec from_ir_config(CrucibleIR.Reliability.Hedging.t()) :: opts()
+  def from_ir_config(%CrucibleIR.Reliability.Hedging{} = config) do
+    base_opts = [strategy: config.strategy]
+
+    # Add non-nil fields from config
+    base_opts
+    |> maybe_add_opt(:delay_ms, config.delay_ms)
+    |> maybe_add_opt(:percentile, config.percentile)
+    |> maybe_add_opt(:max_hedges, config.max_hedges)
+    |> add_options_from_map(config.options)
+  end
+
+  defp maybe_add_opt(opts, _key, nil), do: opts
+  defp maybe_add_opt(opts, key, value), do: Keyword.put(opts, key, value)
+
+  defp add_options_from_map(opts, nil), do: opts
+
+  defp add_options_from_map(opts, options) when is_map(options) do
+    Enum.reduce(options, opts, fn {key, value}, acc ->
+      atom_key =
+        case key do
+          k when is_atom(k) -> k
+          k when is_binary(k) -> String.to_atom(k)
+        end
+
+      Keyword.put(acc, atom_key, value)
+    end)
+  end
+
+  @doc """
   Executes a request with hedging to reduce tail latency.
 
   ## Examples
