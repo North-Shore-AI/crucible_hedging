@@ -1,5 +1,5 @@
 defmodule CrucibleHedging.MultiLevelTest do
-  use ExUnit.Case
+  use Supertester.ExUnitFoundation, isolation: :full_isolation
 
   import ExUnit.CaptureLog
 
@@ -9,17 +9,12 @@ defmodule CrucibleHedging.MultiLevelTest do
         %{
           name: :tier1,
           delay_ms: 500,
-          request_fn: fn ->
-            Process.sleep(10)
-            :tier1_result
-          end
+          request_fn: fn -> :tier1_result end
         },
         %{
           name: :tier2,
           delay_ms: 0,
-          request_fn: fn ->
-            :tier2_result
-          end
+          request_fn: fn -> :tier2_result end
         }
       ]
 
@@ -34,47 +29,39 @@ defmodule CrucibleHedging.MultiLevelTest do
       tiers = [
         %{
           name: :tier1,
-          delay_ms: 50,
+          delay_ms: 0,
           request_fn: fn ->
-            Process.sleep(500)
-            :tier1_result
+            receive do
+              {:release, value} -> value
+            end
           end
         },
         %{
           name: :tier2,
           delay_ms: 0,
-          request_fn: fn ->
-            Process.sleep(10)
-            :tier2_result
-          end
+          request_fn: fn -> :tier2_result end
         }
       ]
 
       {:ok, result, metadata} = CrucibleHedging.MultiLevel.execute(tiers)
 
-      assert result in [:tier1_result, :tier2_result]
-      assert metadata.hedges_fired >= 1
+      assert result == :tier2_result
+      assert metadata.hedges_fired == 1
     end
 
     test "respects quality thresholds" do
       tiers = [
         %{
           name: :tier1,
-          delay_ms: 50,
+          delay_ms: 0,
           quality_threshold: 0.95,
-          request_fn: fn ->
-            Process.sleep(10)
-            %{result: :low_quality, confidence: 0.8}
-          end
+          request_fn: fn -> %{result: :low_quality, confidence: 0.8} end
         },
         %{
           name: :tier2,
           delay_ms: 0,
           quality_threshold: 0.0,
-          request_fn: fn ->
-            Process.sleep(10)
-            %{result: :acceptable, confidence: 0.7}
-          end
+          request_fn: fn -> %{result: :acceptable, confidence: 0.7} end
         }
       ]
 
@@ -89,28 +76,26 @@ defmodule CrucibleHedging.MultiLevelTest do
       tiers = [
         %{
           name: :expensive,
-          delay_ms: 50,
+          delay_ms: 0,
           cost: 0.03,
           request_fn: fn ->
-            Process.sleep(200)
-            :expensive_result
+            receive do
+              {:release, value} -> value
+            end
           end
         },
         %{
           name: :cheap,
           delay_ms: 0,
           cost: 0.001,
-          request_fn: fn ->
-            Process.sleep(10)
-            :cheap_result
-          end
+          request_fn: fn -> :cheap_result end
         }
       ]
 
       {:ok, _result, metadata} = CrucibleHedging.MultiLevel.execute(tiers)
 
       assert is_float(metadata.total_cost)
-      assert metadata.total_cost > 0
+      assert_in_delta(metadata.total_cost, 0.031, 0.000001)
     end
 
     test "handles tier failures gracefully" do

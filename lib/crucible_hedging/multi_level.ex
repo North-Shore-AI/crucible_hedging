@@ -97,7 +97,7 @@ defmodule CrucibleHedging.MultiLevel do
   available result if all tiers complete.
   """
   @spec execute([tier()], keyword()) :: result()
-  def execute(tiers, opts \\ []) when is_list(tiers) and length(tiers) > 0 do
+  def execute(tiers, opts \\ []) when is_list(tiers) and tiers != [] do
     telemetry_prefix = Keyword.get(opts, :telemetry_prefix, [:crucible_hedging, :multi_level])
     request_id = make_ref()
 
@@ -319,32 +319,31 @@ defmodule CrucibleHedging.MultiLevel do
       end)
       |> Enum.map(fn {tier, {:pending, task}} -> {tier, task} end)
 
-    if length(pending_tasks) > 0 do
+    if Enum.empty?(pending_tasks) do
+      state
+    else
       tasks = Enum.map(pending_tasks, fn {_tier, task} -> task end)
       results = Task.yield_many(tasks, timeout)
 
       # Update results with completed tasks
       updated_results =
-        Enum.reduce(Enum.zip(pending_tasks, results), state.results, fn {{tier, _task},
-                                                                         {_yielded_task,
-                                                                          task_result}},
-                                                                        acc ->
-          case task_result do
-            {:ok, {:ok, result, latency}} ->
-              Map.put(acc, tier, {:ok, result, latency})
-
-            {:ok, {:error, reason}} ->
-              Map.put(acc, tier, {:error, reason})
-
-            nil ->
-              # Still pending
-              acc
-          end
-        end)
+        Enum.reduce(Enum.zip(pending_tasks, results), state.results, &update_pending_result/2)
 
       %{state | results: updated_results}
-    else
-      state
+    end
+  end
+
+  defp update_pending_result({{tier, _task}, {_yielded_task, task_result}}, acc) do
+    case task_result do
+      {:ok, {:ok, result, latency}} ->
+        Map.put(acc, tier, {:ok, result, latency})
+
+      {:ok, {:error, reason}} ->
+        Map.put(acc, tier, {:error, reason})
+
+      nil ->
+        # Still pending
+        acc
     end
   end
 

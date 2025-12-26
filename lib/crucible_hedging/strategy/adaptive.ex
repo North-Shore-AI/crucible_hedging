@@ -203,39 +203,47 @@ defmodule CrucibleHedging.Strategy.Adaptive do
   - Medium reward if hedge didn't fire and request was fast
   """
   def calculate_reward(metrics) do
-    cond do
+    case metrics do
       # Hedge fired and won - calculate efficiency
-      metrics[:hedge_won] == true ->
-        primary_latency = metrics[:primary_latency] || 999_999
-        backup_latency = metrics[:backup_latency] || 0
-        hedge_delay = metrics[:hedge_delay] || 0
-
-        # Latency saved by hedging
-        latency_saved = primary_latency - (hedge_delay + backup_latency)
-
-        # Normalize to [0, 1]: 1 if saved >500ms, 0 if no savings
-        reward = latency_saved / 500
-        min(max(reward, 0.0), 1.0)
+      %{hedge_won: true} ->
+        reward_for_hedge_win(metrics)
 
       # Hedge fired but didn't win - penalty for wasted cost
-      metrics[:hedged] == true ->
+      %{hedged: true} ->
         0.0
 
       # No hedge fired and request was fast - good decision
-      metrics[:hedged] == false ->
-        latency = metrics[:primary_latency] || metrics[:total_latency] || 0
-
-        # Reward for correctly not hedging fast requests
-        # Higher reward for faster requests
-        if latency < 200 do
-          0.8
-        else
-          0.5
-        end
+      %{hedged: false} ->
+        reward_for_no_hedge(metrics)
 
       # Default
-      true ->
+      _ ->
         0.0
+    end
+  end
+
+  defp reward_for_hedge_win(metrics) do
+    primary_latency = metrics[:primary_latency] || 999_999
+    backup_latency = metrics[:backup_latency] || 0
+    hedge_delay = metrics[:hedge_delay] || 0
+
+    # Latency saved by hedging
+    latency_saved = primary_latency - (hedge_delay + backup_latency)
+
+    # Normalize to [0, 1]: 1 if saved >500ms, 0 if no savings
+    reward = latency_saved / 500
+    min(max(reward, 0.0), 1.0)
+  end
+
+  defp reward_for_no_hedge(metrics) do
+    latency = metrics[:primary_latency] || metrics[:total_latency] || 0
+
+    # Reward for correctly not hedging fast requests
+    # Higher reward for faster requests
+    if latency < 200 do
+      0.8
+    else
+      0.5
     end
   end
 

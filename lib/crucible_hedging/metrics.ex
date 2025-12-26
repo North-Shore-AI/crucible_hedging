@@ -152,6 +152,12 @@ defmodule CrucibleHedging.Metrics do
     latencies_list = :queue.to_list(state.latencies)
     sorted_latencies = Enum.sort(latencies_list)
 
+    {min_latency, max_latency} =
+      case sorted_latencies do
+        [] -> {0, 0}
+        _ -> {List.first(sorted_latencies), List.last(sorted_latencies)}
+      end
+
     stats = %{
       # Request counts
       total_requests: state.total_requests,
@@ -169,8 +175,8 @@ defmodule CrucibleHedging.Metrics do
       p99_latency: calculate_percentile(sorted_latencies, 99),
       p999_latency: calculate_percentile(sorted_latencies, 99.9),
       # Latency stats
-      min_latency: if(length(sorted_latencies) > 0, do: List.first(sorted_latencies), else: 0),
-      max_latency: if(length(sorted_latencies) > 0, do: List.last(sorted_latencies), else: 0),
+      min_latency: min_latency,
+      max_latency: max_latency,
       mean_latency: calculate_mean(sorted_latencies),
       median_latency: calculate_percentile(sorted_latencies, 50),
       # Cost metrics

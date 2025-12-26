@@ -2,7 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.0] - 2025-11-26
+## [0.3.0] - 2025-12-25
+
+### Added
+- **Crucible Framework Integration**: Added `CrucibleHedging.CrucibleStage` module implementing `Crucible.Stage` behaviour for seamless pipeline integration
+  - Proper `Crucible.Context` handling with artifacts and metrics storage
+  - Stage completion tracking with `mark_stage_complete/2`
+  - Support for all hedging strategies through IR configuration
+  - Comprehensive error handling and validation
+- **Enhanced SVG Logo**: Updated `assets/crucible_hedging.svg` with speed-themed racing design featuring parallel paths and finish line visualization
+- **Configuration Management**: Added `config/config.exs` to disable CrucibleFramework.Repo (hedging doesn't need database persistence)
+- **Documentation**: Added comprehensive documentation in `docs/20251225/`:
+  - `current_state.md` - Complete module inventory and architecture documentation
+  - `gaps.md` - Gap analysis and future improvements
+  - `implementation_prompt.md` - Detailed implementation guide
+
+### Changed
+- Updated `crucible_ir` dependency from `~> 0.1.1` to `~> 0.2.0`
+- Added `crucible_framework ~> 0.4.0` dependency for Stage behaviour support
+- Enhanced race condition handling in core hedging logic with monotonic completion ordering
+- Improved code quality with Credo integration
+- Updated README.md with Crucible Framework integration examples
+
+### Fixed
+- Race condition in `find_first_result/1` by using both completion time and monotonic completion order
+- Metrics calculation edge cases for empty latency lists
+- Multi-level hedging pending task updates
+- Code style improvements for Credo compliance
+- Enhanced test reliability with `supertester` for proper isolation
+
+### Dependencies
+- Added `crucible_framework ~> 0.4.0` for pipeline integration
+- Added `ecto_sql ~> 3.11` (optional, for framework compatibility)
+- Added `postgrex >= 0.0.0` (optional, for framework compatibility)
+- Added `supertester ~> 0.3.1` for improved test isolation
+- Added `stream_data ~> 1.0` for property-based testing support
+- Added `credo ~> 1.7` for code quality analysis
+
+## [0.2.1] - 2025-11-26 (unreleased)
 
 ### Added
 - **CrucibleIR Integration**: Added dependency on `crucible_ir ~> 0.1.1` for unified configuration

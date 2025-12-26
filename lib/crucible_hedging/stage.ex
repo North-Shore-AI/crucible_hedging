@@ -229,32 +229,30 @@ defmodule CrucibleHedging.Stage do
   end
 
   defp execute_without_hedging(context, request_fn) do
-    try do
-      start_time = System.monotonic_time(:millisecond)
-      result = request_fn.()
-      end_time = System.monotonic_time(:millisecond)
-      latency = end_time - start_time
+    start_time = System.monotonic_time(:millisecond)
+    result = request_fn.()
+    end_time = System.monotonic_time(:millisecond)
+    latency = end_time - start_time
 
-      updated_context =
-        context
-        |> Map.put(:result, result)
-        |> Map.put(:hedging_metadata, %{
-          hedged: false,
-          hedge_won: false,
-          total_latency: latency,
-          primary_latency: latency,
-          backup_latency: nil,
-          hedge_delay: nil,
-          cost: 1.0,
-          strategy: :off
-        })
+    updated_context =
+      context
+      |> Map.put(:result, result)
+      |> Map.put(:hedging_metadata, %{
+        hedged: false,
+        hedge_won: false,
+        total_latency: latency,
+        primary_latency: latency,
+        backup_latency: nil,
+        hedge_delay: nil,
+        cost: 1.0,
+        strategy: :off
+      })
 
-      {:ok, updated_context}
-    rescue
-      error ->
-        Logger.error("Request execution failed: #{inspect(error)}")
-        {:error, {:request_failed, error}}
-    end
+    {:ok, updated_context}
+  rescue
+    error ->
+      Logger.error("Request execution failed: #{inspect(error)}")
+      {:error, {:request_failed, error}}
   end
 
   defp execute_with_hedging(context, hedging_config, request_fn, opts) do
@@ -365,11 +363,9 @@ defmodule CrucibleHedging.Stage do
   defp parse_atom(value) when is_atom(value), do: value
 
   defp parse_atom(value) when is_binary(value) do
-    try do
-      String.to_existing_atom(value)
-    rescue
-      ArgumentError -> nil
-    end
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> nil
   end
 
   defp parse_atom(_), do: nil

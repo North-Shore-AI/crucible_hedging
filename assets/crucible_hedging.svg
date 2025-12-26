@@ -1,42 +1,124 @@
-<svg width="200" height="240" viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg">
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="grad_crucible_hedging" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#9370DB;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#9370DB;stop-opacity:0.7" />
+    <!-- Primary gradient: speed-inspired orange to yellow -->
+    <linearGradient id="speedGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B35;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FF9500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFD700;stop-opacity:0.9" />
     </linearGradient>
+
+    <!-- Dark accent gradient for racing stripes -->
+    <linearGradient id="darkStripe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#0f0f1e;stop-opacity:0.9" />
+    </linearGradient>
+
+    <!-- Arrow glow effect -->
+    <filter id="arrowGlow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle drop shadow -->
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+    </filter>
+
+    <!-- Glow for winner arrow -->
+    <filter id="winnerGlow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
 
-  <!-- Hexagon shape (Elixir style) -->
-  <path d="M 100,5 L 190,62.5 L 190,177.5 L 100,235 L 10,177.5 L 10,62.5 Z"
-        fill="url(#grad_crucible_hedging)"
-        stroke="#FFFFFF"
-        stroke-width="3"/>
+  <!-- Hexagon outer frame (flat-top) -->
+  <path d="M 100,20 L 164.95,50 L 164.95,150 L 100,180 L 35.05,150 L 35.05,50 Z"
+        fill="url(#speedGradient)"
+        stroke="#1a1a2e"
+        stroke-width="2.5"
+        filter="url(#shadow)"/>
 
-  <!-- Inner hexagon for depth -->
-  <path d="M 100,25 L 170,67.5 L 170,172.5 L 100,215 L 30,172.5 L 30,67.5 Z"
+  <!-- Inner hexagon frame for depth and border definition -->
+  <path d="M 100,28 L 156.60,55 L 156.60,145 L 100,172 L 43.40,145 L 43.40,55 Z"
         fill="none"
+        stroke="#FFD700"
+        stroke-width="1.2"
+        opacity="0.4"/>
+
+  <!-- Racing stripe 1 (dark diagonal stripe on left side) -->
+  <path d="M 50,100 L 90,100 L 95,110 L 55,110 Z"
+        fill="url(#darkStripe)"
+        opacity="0.6"/>
+
+  <!-- Racing stripe 2 (dark diagonal stripe on right side) -->
+  <path d="M 110,90 L 150,90 L 155,100 L 115,100 Z"
+        fill="url(#darkStripe)"
+        opacity="0.6"/>
+
+  <!-- Left fork: Parallel path 1 (slower) -->
+  <g filter="url(#arrowGlow)">
+    <!-- Path line -->
+    <path d="M 60,75 Q 65,85 70,95 Q 72,105 75,115"
+          stroke="#FF6B35"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"/>
+    <!-- Arrow head for path 1 -->
+    <polygon points="75,115 78,108 72,110" fill="#FF6B35"/>
+  </g>
+
+  <!-- Center fork: Parallel path 2 (medium speed) -->
+  <g filter="url(#arrowGlow)">
+    <!-- Path line -->
+    <path d="M 100,75 Q 100,85 100,95 Q 100,105 100,115"
+          stroke="#FF9500"
+          stroke-width="3"
+          fill="none"
+          stroke-linecap="round"/>
+    <!-- Arrow head for path 2 -->
+    <polygon points="100,115 103,108 97,108" fill="#FF9500"/>
+  </g>
+
+  <!-- Right fork: Parallel path 3 (winner - fastest) -->
+  <g filter="url(#winnerGlow)">
+    <!-- Path line with extra glow -->
+    <path d="M 140,75 Q 135,85 130,95 Q 128,105 125,115"
+          stroke="#FFD700"
+          stroke-width="3.5"
+          fill="none"
+          stroke-linecap="round"
+          opacity="1"/>
+    <!-- Arrow head for path 3 (winner) -->
+    <polygon points="125,115 128,107 122,109" fill="#FFD700"/>
+    <!-- Extra highlight on winner arrow -->
+    <circle cx="125" cy="115" r="4" fill="#FFD700" opacity="0.6"/>
+  </g>
+
+  <!-- Finish line (horizontal) -->
+  <line x1="50" y1="130" x2="150" y2="130"
         stroke="#FFFFFF"
-        stroke-width="1"
-        opacity="0.3"/>
+        stroke-width="2"
+        stroke-dasharray="4,4"
+        opacity="0.7"/>
 
-  <!-- Letter/Icon in center -->
-  <text x="100" y="135"
-        font-family="Arial, sans-serif"
-        font-size="80"
-        font-weight="bold"
-        fill="#FFFFFF"
-        text-anchor="middle">
-    H
-  </text>
+  <!-- Finish flag accent -->
+  <rect x="148" y="125" width="8" height="10" fill="#FFD700" opacity="0.8"/>
+  <rect x="150" y="125" width="6" height="8" fill="#FF6B35" opacity="0.8"/>
 
-  <!-- Small text at bottom -->
-  <text x="100" y="210"
-        font-family="Arial, sans-serif"
-        font-size="14"
-        font-weight="normal"
-        fill="#FFFFFF"
-        text-anchor="middle"
-        opacity="0.9">
-    Hedging
-  </text>
+  <!-- Starting point indicator (fork origin) -->
+  <circle cx="100" cy="60" r="3" fill="#FFFFFF" opacity="0.7"/>
+  <line x1="95" y1="60" x2="105" y2="60" stroke="#FFFFFF" stroke-width="1.5" opacity="0.5"/>
+  <line x1="100" y1="55" x2="100" y2="65" stroke="#FFFFFF" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Redundancy indicator dots (showing multiple parallel requests) -->
+  <circle cx="65" cy="48" r="2" fill="#FFD700" opacity="0.6"/>
+  <circle cx="100" cy="42" r="2" fill="#FF9500" opacity="0.6"/>
+  <circle cx="135" cy="48" r="2" fill="#FF6B35" opacity="0.6"/>
+
 </svg>

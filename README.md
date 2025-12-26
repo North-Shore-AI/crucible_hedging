@@ -122,6 +122,56 @@ result = updated_context.result
 metadata = updated_context.hedging_metadata
 ```
 
+### Crucible Framework Integration
+
+Use `CrucibleHedging.CrucibleStage` with the crucible_framework pipeline system:
+
+```elixir
+# Define experiment with hedging configuration
+experiment = %CrucibleIR.Experiment{
+  id: "my-experiment",
+  backend: %CrucibleIR.BackendRef{id: :openai},
+  pipeline: [%CrucibleIR.StageDef{name: :hedging}],
+  reliability: %CrucibleIR.Reliability.Config{
+    hedging: %CrucibleIR.Reliability.Hedging{
+      strategy: :percentile,
+      percentile: 95,
+      max_hedges: 1
+    }
+  }
+}
+
+# Create context
+ctx = %Crucible.Context{
+  experiment_id: experiment.id,
+  run_id: "run-1",
+  experiment: experiment
+}
+
+# Run hedging stage with request function
+{:ok, updated_ctx} = CrucibleHedging.CrucibleStage.run(ctx, %{
+  request_fn: fn -> make_api_call() end
+})
+
+# Access results
+result = Crucible.Context.get_artifact(updated_ctx, :hedging_result)
+metadata = Crucible.Context.get_metric(updated_ctx, :hedging)
+```
+
+#### Stage Outputs
+
+The `CrucibleStage` stores:
+- **Artifact** `:hedging_result` - The result from the fastest request
+- **Metric** `:hedging` - Hedging execution metadata including:
+  - `hedged` - Whether a hedge was fired
+  - `hedge_won` - Whether the hedge completed first
+  - `total_latency` - Total request latency
+  - `primary_latency` - Primary request latency
+  - `backup_latency` - Backup request latency (if hedge fired)
+  - `hedge_delay` - Delay before hedge was sent
+  - `cost` - Request cost factor (1.0 or 2.0)
+  - `strategy` - Strategy used
+
 ### Using IR Config with Direct API
 
 ```elixir

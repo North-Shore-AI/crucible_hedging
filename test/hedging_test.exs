@@ -1,15 +1,14 @@
 defmodule HedgingTest do
-  use ExUnit.Case
+  use Supertester.ExUnitFoundation, isolation: :full_isolation
   doctest CrucibleHedging
+
+  alias CrucibleHedging.Strategy.{Adaptive, Percentile}
 
   describe "request/2 with fixed strategy" do
     test "completes without hedging when request is fast" do
       {:ok, result, metadata} =
         CrucibleHedging.request(
-          fn ->
-            Process.sleep(10)
-            :fast_result
-          end,
+          fn -> :fast_result end,
           strategy: :fixed,
           delay_ms: 100
         )
@@ -17,51 +16,58 @@ defmodule HedgingTest do
       assert result == :fast_result
       assert metadata.hedged == false
       assert metadata.hedge_won == false
-      assert metadata.primary_latency > 0
+      assert is_integer(metadata.primary_latency)
       assert metadata.backup_latency == nil
     end
 
     test "fires hedge when request is slow" do
-      {:ok, result, metadata} =
-        CrucibleHedging.request(
-          fn ->
-            Process.sleep(200)
-            :slow_result
-          end,
-          strategy: :fixed,
-          delay_ms: 50
-        )
+      request_fn = blocking_request_fn(self())
+
+      task =
+        Task.async(fn ->
+          CrucibleHedging.request(request_fn, strategy: :fixed, delay_ms: 0)
+        end)
+
+      pids = await_request_starts(2)
+      release_requests(pids, :slow_result)
+
+      {:ok, result, metadata} = Task.await(task)
 
       assert result == :slow_result
       assert metadata.hedged == true
-      assert metadata.total_latency < 300
     end
 
     test "hedge wins when backup completes first" do
-      # Use an Agent to track call count in a deterministic way
-      {:ok, counter} = Agent.start_link(fn -> 0 end)
+      test_pid = self()
+      request_fn = blocking_request_fn(test_pid)
 
-      request_fn = fn ->
-        # Atomically increment and get the call number
-        call_number = Agent.get_and_update(counter, fn count -> {count + 1, count + 1} end)
+      handler_id = "hedge-win-handler-#{System.unique_integer([:positive])}"
 
-        case call_number do
-          1 ->
-            # Primary is slow
-            Process.sleep(500)
-            :primary
+      :telemetry.attach(
+        handler_id,
+        [:crucible_hedging, :hedge, :fired],
+        &__MODULE__.handle_telemetry_event/4,
+        test_pid
+      )
 
-          _ ->
-            # Backup is fast
-            Process.sleep(10)
-            :backup
-        end
-      end
+      on_exit(fn -> :telemetry.detach(handler_id) end)
 
-      {:ok, result, metadata} =
-        CrucibleHedging.request(request_fn, strategy: :fixed, delay_ms: 50)
+      task =
+        Task.async(fn ->
+          CrucibleHedging.request(request_fn, strategy: :fixed, delay_ms: 0)
+        end)
 
-      Agent.stop(counter)
+      assert_receive {:request_started, primary_pid}
+      assert_receive {:telemetry, [:crucible_hedging, :hedge, :fired], _measurements, _metadata}
+      assert_receive {:request_started, backup_pid}
+
+      backup_ref = Process.monitor(backup_pid)
+
+      release_request(backup_pid, :backup)
+      assert_receive {:DOWN, ^backup_ref, :process, ^backup_pid, _reason}
+      release_request(primary_pid, :primary)
+
+      {:ok, result, metadata} = Task.await(task)
 
       assert result == :backup
       assert metadata.hedged == true
@@ -84,12 +90,13 @@ defmodule HedgingTest do
       result =
         CrucibleHedging.request(
           fn ->
-            Process.sleep(10_000)
-            :never_completes
+            receive do
+              :never_completes -> :never_completes
+            end
           end,
           strategy: :fixed,
-          delay_ms: 50,
-          timeout_ms: 100
+          delay_ms: 0,
+          timeout_ms: 0
         )
 
       assert match?({:error, _}, result)
@@ -99,7 +106,7 @@ defmodule HedgingTest do
   describe "request/2 with percentile strategy" do
     setup do
       # Stop any existing GenServer first
-      case GenServer.whereis(CrucibleHedging.Strategy.Percentile) do
+      case GenServer.whereis(Percentile) do
         nil ->
           :ok
 
@@ -108,11 +115,10 @@ defmodule HedgingTest do
       end
 
       # Start the percentile strategy GenServer
-      {:ok, _pid} =
-        CrucibleHedging.Strategy.Percentile.start_link(initial_delay: 100, percentile: 95)
+      {:ok, _pid} = Percentile.start_link(initial_delay: 100, percentile: 95)
 
       on_exit(fn ->
-        case GenServer.whereis(CrucibleHedging.Strategy.Percentile) do
+        case GenServer.whereis(Percentile) do
           nil ->
             :ok
 
@@ -127,10 +133,7 @@ defmodule HedgingTest do
     test "uses initial delay when not enough samples" do
       {:ok, _result, metadata} =
         CrucibleHedging.request(
-          fn ->
-            Process.sleep(10)
-            :result
-          end,
+          fn -> :result end,
           strategy: :percentile
         )
 
@@ -138,21 +141,13 @@ defmodule HedgingTest do
     end
 
     test "adapts delay based on observed latencies" do
-      # Generate some requests with known latencies
+      # Feed deterministic latencies into the strategy
       Enum.each(1..20, fn i ->
-        latency = i * 10
-
-        CrucibleHedging.request(
-          fn ->
-            Process.sleep(latency)
-            :result
-          end,
-          strategy: :percentile
-        )
+        Percentile.update(%{total_latency: i * 10}, nil)
       end)
 
       # The delay should now be based on the percentile
-      stats = CrucibleHedging.Strategy.Percentile.get_stats()
+      stats = Percentile.get_stats()
       assert stats.sample_count >= 10
       assert stats.current_delay > 100
     end
@@ -161,7 +156,7 @@ defmodule HedgingTest do
   describe "request/2 with adaptive strategy" do
     setup do
       # Stop any existing GenServer first
-      case GenServer.whereis(CrucibleHedging.Strategy.Adaptive) do
+      case GenServer.whereis(Adaptive) do
         nil ->
           :ok
 
@@ -169,11 +164,10 @@ defmodule HedgingTest do
           if Process.alive?(pid), do: GenServer.stop(pid), else: :ok
       end
 
-      {:ok, _pid} =
-        CrucibleHedging.Strategy.Adaptive.start_link(delay_candidates: [50, 100, 200])
+      {:ok, _pid} = Adaptive.start_link(delay_candidates: [50, 100, 200])
 
       on_exit(fn ->
-        case GenServer.whereis(CrucibleHedging.Strategy.Adaptive) do
+        case GenServer.whereis(Adaptive) do
           nil ->
             :ok
 
@@ -188,10 +182,7 @@ defmodule HedgingTest do
     test "selects delay from candidates" do
       {:ok, _result, metadata} =
         CrucibleHedging.request(
-          fn ->
-            Process.sleep(10)
-            :result
-          end,
+          fn -> :result end,
           strategy: :adaptive,
           delay_candidates: [50, 100, 200]
         )
@@ -203,16 +194,13 @@ defmodule HedgingTest do
       # Make multiple requests
       Enum.each(1..10, fn _ ->
         CrucibleHedging.request(
-          fn ->
-            Process.sleep(:rand.uniform(100))
-            :result
-          end,
+          fn -> :result end,
           strategy: :adaptive,
           delay_candidates: [50, 100, 200]
         )
       end)
 
-      stats = CrucibleHedging.Strategy.Adaptive.get_stats()
+      stats = Adaptive.get_stats()
       assert stats.total_pulls >= 10
       assert map_size(stats.arms) == 3
     end
@@ -276,6 +264,8 @@ defmodule HedgingTest do
         test_pid
       )
 
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
       CrucibleHedging.request(
         fn -> :result end,
         strategy: :fixed,
@@ -284,12 +274,11 @@ defmodule HedgingTest do
 
       assert_receive {:telemetry, [:crucible_hedging, :request, :start], _measurements, _metadata}
       assert_receive {:telemetry, [:crucible_hedging, :request, :stop], _measurements, _metadata}
-
-      :telemetry.detach(handler_id)
     end
 
     test "emits hedge fired event when hedge is sent" do
       test_pid = self()
+      request_fn = blocking_request_fn(test_pid)
 
       handler_id = "test-hedge-handler-#{System.unique_integer([:positive])}"
 
@@ -300,24 +289,54 @@ defmodule HedgingTest do
         test_pid
       )
 
-      CrucibleHedging.request(
-        fn ->
-          Process.sleep(200)
-          :result
-        end,
-        strategy: :fixed,
-        delay_ms: 50
-      )
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      task =
+        Task.async(fn ->
+          CrucibleHedging.request(request_fn, strategy: :fixed, delay_ms: 0)
+        end)
+
+      pids = await_request_starts(2)
 
       assert_receive {:telemetry, [:crucible_hedging, :hedge, :fired], _measurements, _metadata}
 
-      :telemetry.detach(handler_id)
+      release_requests(pids, :result)
+
+      Task.await(task)
     end
   end
 
   # Telemetry handler function to avoid warnings
   def handle_telemetry_event(event, measurements, metadata, test_pid) do
     send(test_pid, {:telemetry, event, measurements, metadata})
+  end
+
+  defp blocking_request_fn(test_pid) do
+    fn ->
+      pid = self()
+      send(test_pid, {:request_started, pid})
+
+      receive do
+        {:release, ^pid, value} -> value
+      end
+    end
+  end
+
+  defp await_request_starts(count) do
+    Enum.map(1..count, fn _ ->
+      assert_receive {:request_started, pid}
+      pid
+    end)
+  end
+
+  defp release_requests(pids, value) do
+    Enum.each(pids, fn pid ->
+      release_request(pid, value)
+    end)
+  end
+
+  defp release_request(pid, value) do
+    send(pid, {:release, pid, value})
   end
 
   describe "edge cases" do
@@ -339,10 +358,7 @@ defmodule HedgingTest do
         for i <- 1..10 do
           Task.async(fn ->
             CrucibleHedging.request(
-              fn ->
-                Process.sleep(:rand.uniform(50))
-                {:ok, i}
-              end,
+              fn -> {:ok, i} end,
               strategy: :fixed,
               delay_ms: 25
             )
@@ -368,7 +384,7 @@ defmodule HedgingTest do
 
       assert result == :instant
       assert metadata.hedged == false
-      assert metadata.total_latency < 50
+      assert is_integer(metadata.total_latency)
     end
 
     test "handles requests with custom telemetry prefix" do
@@ -396,16 +412,22 @@ defmodule HedgingTest do
 
     test "handles cancellation disabled" do
       # With cancellation disabled, both requests should complete
-      {:ok, _result, metadata} =
-        CrucibleHedging.request(
-          fn ->
-            Process.sleep(200)
-            :result
-          end,
-          strategy: :fixed,
-          delay_ms: 50,
-          enable_cancellation: false
-        )
+      request_fn = blocking_request_fn(self())
+
+      task =
+        Task.async(fn ->
+          CrucibleHedging.request(
+            request_fn,
+            strategy: :fixed,
+            delay_ms: 0,
+            enable_cancellation: false
+          )
+        end)
+
+      pids = await_request_starts(2)
+      release_requests(pids, :result)
+
+      {:ok, _result, metadata} = Task.await(task)
 
       # Should still hedge
       assert metadata.hedged == true

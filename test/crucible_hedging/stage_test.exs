@@ -1,11 +1,11 @@
 defmodule CrucibleHedging.StageTest do
-  use ExUnit.Case, async: true
+  use Supertester.ExUnitFoundation, isolation: :full_isolation
   doctest CrucibleHedging.Stage
 
   import ExUnit.CaptureLog
 
-  alias CrucibleIR.Reliability.Hedging
   alias CrucibleHedging.Stage
+  alias CrucibleIR.Reliability.Hedging
 
   describe "describe/1" do
     test "returns stage description" do
@@ -58,15 +58,12 @@ defmodule CrucibleHedging.StageTest do
 
       context = %{
         experiment: %{reliability: %{hedging: config}},
-        request_fn: fn ->
-          Process.sleep(10)
-          :result
-        end
+        request_fn: fn -> :result end
       }
 
       assert {:ok, updated_context} = Stage.run(context)
-      assert updated_context.hedging_metadata.total_latency >= 10
-      assert updated_context.hedging_metadata.primary_latency >= 10
+      assert is_integer(updated_context.hedging_metadata.total_latency)
+      assert is_integer(updated_context.hedging_metadata.primary_latency)
     end
   end
 
@@ -326,10 +323,7 @@ defmodule CrucibleHedging.StageTest do
 
       context = %{
         experiment: %{reliability: %{hedging: config}},
-        request_fn: fn ->
-          Process.sleep(10)
-          :fast_result
-        end
+        request_fn: fn -> :fast_result end
       }
 
       assert {:ok, updated_context} = Stage.run(context)
@@ -340,21 +334,46 @@ defmodule CrucibleHedging.StageTest do
     test "slow requests trigger hedge" do
       config = %Hedging{
         strategy: :fixed,
-        delay_ms: 50
+        delay_ms: 0
       }
 
       context = %{
         experiment: %{reliability: %{hedging: config}},
-        request_fn: fn ->
-          Process.sleep(200)
-          :slow_result
-        end
+        request_fn: blocking_request_fn(self())
       }
 
-      assert {:ok, updated_context} = Stage.run(context)
+      task = Task.async(fn -> Stage.run(context) end)
+      pids = await_request_starts(2)
+      release_requests(pids, :slow_result)
+
+      assert {:ok, updated_context} = Task.await(task)
       assert updated_context.result == :slow_result
       # Hedge should have been fired due to delay
       assert updated_context.hedging_metadata.hedged == true
     end
+  end
+
+  defp blocking_request_fn(test_pid) do
+    fn ->
+      pid = self()
+      send(test_pid, {:request_started, pid})
+
+      receive do
+        {:release, ^pid, value} -> value
+      end
+    end
+  end
+
+  defp await_request_starts(count) do
+    Enum.map(1..count, fn _ ->
+      assert_receive {:request_started, pid}
+      pid
+    end)
+  end
+
+  defp release_requests(pids, value) do
+    Enum.each(pids, fn pid ->
+      send(pid, {:release, pid, value})
+    end)
   end
 end

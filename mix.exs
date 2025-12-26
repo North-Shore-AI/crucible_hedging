@@ -30,11 +30,18 @@ defmodule CrucibleHedging.MixProject do
 
   defp deps do
     [
-      {:crucible_ir, "~> 0.1.1"},
+      {:crucible_ir, "~> 0.2.0"},
+      {:crucible_framework, "~> 0.4.0"},
       {:telemetry, "~> 1.2"},
       {:nimble_options, "~> 1.0"},
+      # Required for crucible_framework's optional persistence layer
+      {:ecto_sql, "~> 3.11"},
+      {:postgrex, ">= 0.0.0"},
+      {:supertester, "~> 0.3.1", only: :test},
+      {:stream_data, "~> 1.0", only: :test},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 

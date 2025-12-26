@@ -1,27 +1,33 @@
 defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
-  use ExUnit.Case
+  use Supertester.ExUnitFoundation, isolation: :full_isolation
   doctest CrucibleHedging.Strategy.ExponentialBackoff
 
   alias CrucibleHedging.Strategy.ExponentialBackoff
 
-  setup do
-    # Stop any existing GenServer first
-    case GenServer.whereis(ExponentialBackoff) do
+  defp safe_stop(name) do
+    case GenServer.whereis(name) do
       nil ->
         :ok
 
       pid when is_pid(pid) ->
-        if Process.alive?(pid), do: GenServer.stop(pid), else: :ok
+        if Process.alive?(pid) do
+          try do
+            GenServer.stop(pid)
+          catch
+            :exit, {:noproc, _} -> :ok
+          end
+        else
+          :ok
+        end
     end
+  end
+
+  setup do
+    # Stop any existing GenServer first
+    safe_stop(ExponentialBackoff)
 
     on_exit(fn ->
-      case GenServer.whereis(ExponentialBackoff) do
-        nil ->
-          :ok
-
-        pid when is_pid(pid) ->
-          if Process.alive?(pid), do: GenServer.stop(pid), else: :ok
-      end
+      safe_stop(ExponentialBackoff)
     end)
 
     :ok
@@ -44,11 +50,7 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       on_exit(fn ->
         ExponentialBackoff.reset(name)
-
-        case GenServer.whereis(name) do
-          nil -> :ok
-          pid -> GenServer.stop(pid)
-        end
+        safe_stop(name)
       end)
 
       delay =
@@ -82,7 +84,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       # Simulate hedge won
       ExponentialBackoff.update(%{hedge_won: true}, nil)
-      Process.sleep(10)
 
       new_delay = ExponentialBackoff.calculate_delay([])
       assert new_delay == 900
@@ -96,7 +97,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       # Simulate hedge fired but didn't win
       ExponentialBackoff.update(%{hedged: true, hedge_won: false}, nil)
-      Process.sleep(10)
 
       new_delay = ExponentialBackoff.calculate_delay([])
       assert new_delay == 150
@@ -110,7 +110,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       # Simulate error
       ExponentialBackoff.update(%{error: :timeout}, nil)
-      Process.sleep(10)
 
       new_delay = ExponentialBackoff.calculate_delay([])
       assert new_delay == 200
@@ -123,7 +122,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       # Multiple successes should hit min
       Enum.each(1..10, fn _ ->
         ExponentialBackoff.update(%{hedge_won: true}, nil)
-        Process.sleep(5)
       end)
 
       delay = ExponentialBackoff.calculate_delay([])
@@ -137,7 +135,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       # Multiple failures should hit max
       Enum.each(1..10, fn _ ->
         ExponentialBackoff.update(%{hedged: true, hedge_won: false}, nil)
-        Process.sleep(5)
       end)
 
       delay = ExponentialBackoff.calculate_delay([])
@@ -149,7 +146,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       Enum.each(1..5, fn _ ->
         ExponentialBackoff.update(%{hedge_won: true}, nil)
-        Process.sleep(5)
       end)
 
       stats = ExponentialBackoff.get_stats()
@@ -162,7 +158,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       Enum.each(1..3, fn _ ->
         ExponentialBackoff.update(%{hedged: true, hedge_won: false}, nil)
-        Process.sleep(5)
       end)
 
       stats = ExponentialBackoff.get_stats()
@@ -176,7 +171,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       # Build up success streak
       Enum.each(1..3, fn _ ->
         ExponentialBackoff.update(%{hedge_won: true}, nil)
-        Process.sleep(5)
       end)
 
       stats1 = ExponentialBackoff.get_stats()
@@ -184,7 +178,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       # One failure resets
       ExponentialBackoff.update(%{hedged: true, hedge_won: false}, nil)
-      Process.sleep(10)
 
       stats2 = ExponentialBackoff.get_stats()
       assert stats2.consecutive_successes == 0
@@ -195,7 +188,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       {:ok, _pid} = ExponentialBackoff.start_link(base_delay: 100, decrease_factor: 0.9)
 
       ExponentialBackoff.update(%{hedged: false}, nil)
-      Process.sleep(10)
 
       # Should treat as success
       delay = ExponentialBackoff.calculate_delay([])
@@ -207,10 +199,7 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
         ExponentialBackoff.start_link(base_delay: 100, error_factor: 2.0, name: :error_backoff)
 
       on_exit(fn ->
-        case GenServer.whereis(:error_backoff) do
-          nil -> :ok
-          pid -> GenServer.stop(pid)
-        end
+        safe_stop(:error_backoff)
       end)
 
       assert {:error, _} =
@@ -219,8 +208,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
                  strategy: :exponential_backoff,
                  strategy_name: :error_backoff
                )
-
-      Process.sleep(20)
 
       stats = ExponentialBackoff.get_stats(:error_backoff)
       assert stats.current_delay >= 200
@@ -262,11 +249,8 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       {:ok, _pid} = ExponentialBackoff.start_link()
 
       ExponentialBackoff.update(%{hedge_won: true}, nil)
-      Process.sleep(5)
       ExponentialBackoff.update(%{hedged: true, hedge_won: false}, nil)
-      Process.sleep(5)
       ExponentialBackoff.update(%{error: :timeout}, nil)
-      Process.sleep(5)
 
       stats = ExponentialBackoff.get_stats()
       assert stats.total_adjustments == 3
@@ -280,7 +264,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       # Build up some state
       Enum.each(1..5, fn _ ->
         ExponentialBackoff.update(%{hedged: true, hedge_won: false}, nil)
-        Process.sleep(5)
       end)
 
       stats1 = ExponentialBackoff.get_stats()
@@ -289,7 +272,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       # Reset
       ExponentialBackoff.reset()
-      Process.sleep(10)
 
       stats2 = ExponentialBackoff.get_stats()
       assert stats2.current_delay == 100
@@ -306,7 +288,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       {:ok, result, metadata} =
         CrucibleHedging.request(
           fn ->
-            Process.sleep(10)
             :fast_result
           end,
           strategy: :exponential_backoff
@@ -324,16 +305,13 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
           decrease_factor: 0.9
         )
 
-      # First request - slow, hedge should fire
+      # First request should adjust the delay
       CrucibleHedging.request(
         fn ->
-          Process.sleep(200)
           :result
         end,
         strategy: :exponential_backoff
       )
-
-      Process.sleep(50)
 
       # Delay should have adjusted based on outcome
       stats = ExponentialBackoff.get_stats()
@@ -399,14 +377,14 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
 
       # Rapid fire updates
       tasks =
-        for _ <- 1..100 do
+        for i <- 1..100 do
           Task.async(fn ->
-            ExponentialBackoff.update(%{hedge_won: :rand.uniform() > 0.5}, nil)
+            ExponentialBackoff.update(%{hedge_won: rem(i, 2) == 0}, nil)
+            ExponentialBackoff.get_stats()
           end)
         end
 
       Task.await_many(tasks, 1000)
-      Process.sleep(50)
 
       # Should still be responsive
       stats = ExponentialBackoff.get_stats()
@@ -426,7 +404,6 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       # Many successes should converge to min
       Enum.each(1..20, fn _ ->
         ExponentialBackoff.update(%{hedge_won: true}, nil)
-        Process.sleep(5)
       end)
 
       delay = ExponentialBackoff.calculate_delay([])
@@ -437,18 +414,17 @@ defmodule CrucibleHedging.Strategy.ExponentialBackoffTest do
       {:ok, _pid} =
         ExponentialBackoff.start_link(
           base_delay: 10,
-          max_delay: 10000,
+          max_delay: 10_000,
           increase_factor: 5.0
         )
 
       # Should quickly hit max
       Enum.each(1..5, fn _ ->
         ExponentialBackoff.update(%{hedged: true, hedge_won: false}, nil)
-        Process.sleep(5)
       end)
 
       delay = ExponentialBackoff.calculate_delay([])
-      assert delay == 10000
+      assert delay == 10_000
     end
   end
 end

@@ -1,5 +1,5 @@
 defmodule CrucibleHedging.MetricsTest do
-  use ExUnit.Case
+  use Supertester.ExUnitFoundation, isolation: :full_isolation
   doctest CrucibleHedging.Metrics
 
   setup do

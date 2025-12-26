@@ -1,5 +1,5 @@
 defmodule CrucibleHedging.ConfigTest do
-  use ExUnit.Case
+  use Supertester.ExUnitFoundation, isolation: :full_isolation
   doctest CrucibleHedging.Config
 
   describe "validate/1" do

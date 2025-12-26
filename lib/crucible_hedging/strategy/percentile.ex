@@ -201,11 +201,11 @@ defmodule CrucibleHedging.Strategy.Percentile do
     end
   end
 
-  defp calculate_percentile_value(sorted, percentile) when length(sorted) > 0 do
+  defp calculate_percentile_value([], _percentile), do: 0
+
+  defp calculate_percentile_value(sorted, percentile) do
     len = length(sorted)
     index = max(0, ceil(len * percentile / 100) - 1)
     Enum.at(sorted, index, 0)
   end
-
-  defp calculate_percentile_value(_sorted, _percentile), do: 0
 end

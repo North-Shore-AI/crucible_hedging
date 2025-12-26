@@ -220,8 +220,9 @@ defmodule CrucibleHedging do
         try do
           result = request_fn.()
           completion_time = System.monotonic_time(:millisecond)
+          completion_order = System.unique_integer([:monotonic, :positive])
           latency = completion_time - start_time
-          {:primary, result, latency, completion_time}
+          {:primary, result, latency, completion_time, completion_order}
         rescue
           error ->
             {:error, error}
@@ -230,7 +231,7 @@ defmodule CrucibleHedging do
 
     # Wait for hedge delay or primary completion
     case Task.yield(primary_task, delay_ms) do
-      {:ok, {:primary, result, latency, _completion_time}} ->
+      {:ok, {:primary, result, latency, _completion_time, _completion_order}} ->
         # Primary completed before hedge delay
         {:ok, result,
          %{
@@ -292,8 +293,9 @@ defmodule CrucibleHedging do
         try do
           result = request_fn.()
           completion_time = System.monotonic_time(:millisecond)
+          completion_order = System.unique_integer([:monotonic, :positive])
           latency = completion_time - hedge_start
-          {:backup, result, latency, completion_time}
+          {:backup, result, latency, completion_time, completion_order}
         rescue
           error ->
             {:error, error}
@@ -349,7 +351,7 @@ defmodule CrucibleHedging do
       tasks_with_results
       |> Enum.filter(fn
         {_task, {:ok, {:error, _reason}}} -> false
-        {_task, {:ok, {_tag, _result, _latency, _completion_time}}} -> true
+        {_task, {:ok, {_tag, _result, _latency, _completion_time, _completion_order}}} -> true
         {_task, _} -> false
       end)
       |> Enum.map(fn {_task, {:ok, result}} -> result end)
@@ -360,9 +362,11 @@ defmodule CrucibleHedging do
 
       results ->
         # Sort by completion time and return the first one
-        {tag, result, latency, _completion_time} =
+        {tag, result, latency, _completion_time, _completion_order} =
           results
-          |> Enum.min_by(fn {_tag, _result, _latency, completion_time} -> completion_time end)
+          |> Enum.min_by(fn {_tag, _result, _latency, completion_time, completion_order} ->
+            {completion_time, completion_order}
+          end)
 
         {:ok, {tag, result, latency}}
     end
@@ -371,7 +375,7 @@ defmodule CrucibleHedging do
   defp cancel_slower_tasks(tasks_with_results, winner, telemetry_prefix, request_id) do
     tasks_with_results
     |> Enum.each(fn
-      {_task, {:ok, {^winner, _result, _latency}}} ->
+      {_task, {:ok, {^winner, _result, _latency, _completion_time, _completion_order}}} ->
         # This is the winner, don't cancel
         nil
 
