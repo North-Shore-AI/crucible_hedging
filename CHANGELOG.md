@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2025-12-26
+
+### Changed
+- **Canonical Schema Format**: Normalized `describe/1` to the canonical schema format as defined in the Stage Describe Contract specification v1.0.0
+  - Changed `:stage` key to `:name` key (atom value)
+  - Added `required`, `optional`, `types`, `defaults` fields for option validation
+  - Moved `inputs`/`outputs` to `__extensions__.hedging` namespace
+  - Added schema version marker (`__schema_version__: "1.0.0"`)
+- Updated `crucible_framework` dependency from `~> 0.4.0` to `~> 0.5.0`
+
+### Added
+- **Conformance Tests**: New `test/crucible_hedging/conformance_test.exs` verifying stage contract compliance
+- **Stage Contract Documentation**: Added Stage Contract section to README.md with schema introspection examples
+- Type specifications for all options in the canonical format
+
+### Documentation
+- Updated README.md with Stage Contract section documenting required/optional options
+- Added schema introspection code examples
+
 ## [0.3.0] - 2025-12-25
 
 ### Added

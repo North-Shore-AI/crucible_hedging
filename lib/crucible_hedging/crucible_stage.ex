@@ -99,58 +99,85 @@ defmodule CrucibleHedging.CrucibleStage do
   @doc """
   Describes the hedging stage for documentation and introspection.
 
+  Returns the canonical schema format for stage introspection, validation, and tooling.
+
   ## Parameters
 
-  - `opts` - Optional configuration map
+  - `opts` - Optional configuration map (unused in canonical format)
 
   ## Returns
 
-  A map describing the stage with keys:
-  - `:stage` - Stage name (`:hedging`)
+  A map with canonical schema keys:
+  - `:__schema_version__` - Schema version for compatibility
+  - `:name` - Stage name as atom
   - `:description` - Human-readable description
-  - `:inputs` - List of required inputs
-  - `:outputs` - List of outputs produced
-  - `:config` - Configuration extracted from opts
+  - `:required` - List of required option keys
+  - `:optional` - List of optional option keys
+  - `:types` - Type specifications for options
+  - `:defaults` - Default values for optional options
+  - `:__extensions__` - Domain-specific metadata
   """
   @impl Crucible.Stage
   @spec describe(map()) :: map()
-  def describe(opts) do
+  def describe(_opts) do
     %{
-      stage: :hedging,
+      __schema_version__: "1.0.0",
+      name: :hedging,
       description: "Request hedging for tail latency reduction",
-      inputs: [
-        %{
-          name: :experiment,
-          path: [:experiment, :reliability, :hedging],
-          type: :struct,
-          struct_module: CrucibleIR.Reliability.Hedging,
-          required: true,
-          description: "Hedging configuration from experiment IR"
-        },
-        %{
-          name: :request_fn,
-          path: [:request_fn],
-          type: :function,
-          arity: 0,
-          required: true,
-          description: "Function to execute with hedging (provided in opts)"
+      required: [:request_fn],
+      optional: [:strategy, :delay_ms, :percentile, :max_hedges, :timeout_ms],
+      types: %{
+        request_fn: {:function, 0},
+        strategy:
+          {:enum, [:off, :fixed, :percentile, :adaptive, :workload_aware, :exponential_backoff]},
+        delay_ms: :integer,
+        percentile: :float,
+        max_hedges: :integer,
+        timeout_ms: :integer
+      },
+      defaults: %{
+        strategy: :off,
+        delay_ms: 100,
+        max_hedges: 2,
+        timeout_ms: 30_000
+      },
+      __extensions__: %{
+        hedging: %{
+          config_type: CrucibleIR.Reliability.Hedging,
+          inputs: [
+            %{
+              name: :experiment,
+              path: [:experiment, :reliability, :hedging],
+              type: :struct,
+              struct_module: CrucibleIR.Reliability.Hedging,
+              required: true,
+              description: "Hedging configuration from experiment IR"
+            },
+            %{
+              name: :request_fn,
+              path: [:request_fn],
+              type: :function,
+              arity: 0,
+              required: true,
+              description: "Function to execute with hedging"
+            }
+          ],
+          outputs: [
+            %{
+              name: :hedging_result,
+              location: :artifacts,
+              type: :any,
+              description: "Result from the request function"
+            },
+            %{
+              name: :hedging,
+              location: :metrics,
+              type: :map,
+              description: "Hedging execution metadata (latency, hedge stats, etc.)"
+            }
+          ]
         }
-      ],
-      outputs: [
-        %{
-          name: :hedging_result,
-          location: :artifacts,
-          type: :any,
-          description: "Result from the request function"
-        },
-        %{
-          name: :hedging,
-          location: :metrics,
-          type: :map,
-          description: "Hedging execution metadata (latency, hedge stats, etc.)"
-        }
-      ],
-      config: Map.take(opts, [:strategy, :delay_ms, :percentile, :max_hedges, :timeout_ms])
+      }
     }
   end
 

@@ -172,6 +172,39 @@ The `CrucibleStage` stores:
   - `cost` - Request cost factor (1.0 or 2.0)
   - `strategy` - Strategy used
 
+#### Stage Contract
+
+`CrucibleHedging.CrucibleStage` implements the `Crucible.Stage` behaviour with the canonical `describe/1` schema format.
+
+**Required Options:**
+- `:request_fn` - Function/0 to execute with hedging
+
+**Optional Options:**
+- `:strategy` - Hedging strategy (`:off`, `:fixed`, `:percentile`, `:adaptive`, `:workload_aware`, `:exponential_backoff`)
+- `:delay_ms` - Delay before hedge request (default: 100)
+- `:percentile` - Percentile threshold for percentile strategy
+- `:max_hedges` - Maximum hedge attempts (default: 2)
+- `:timeout_ms` - Request timeout (default: 30000)
+
+**Schema Introspection:**
+
+```elixir
+# Get the stage schema for tooling and validation
+schema = CrucibleHedging.CrucibleStage.describe(%{})
+
+# Returns canonical format:
+# %{
+#   __schema_version__: "1.0.0",
+#   name: :hedging,
+#   description: "Request hedging for tail latency reduction",
+#   required: [:request_fn],
+#   optional: [:strategy, :delay_ms, :percentile, :max_hedges, :timeout_ms],
+#   types: %{...},
+#   defaults: %{...},
+#   __extensions__: %{hedging: %{...}}
+# }
+```
+
 ### Using IR Config with Direct API
 
 ```elixir

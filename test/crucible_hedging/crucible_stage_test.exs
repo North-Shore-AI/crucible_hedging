@@ -249,30 +249,39 @@ defmodule CrucibleHedging.CrucibleStageTest do
   end
 
   describe "describe/1" do
-    test "returns stage description" do
+    test "returns stage description with canonical schema format" do
       description = CrucibleStage.describe(%{})
 
-      assert description.stage == :hedging
+      assert description.name == :hedging
       assert is_binary(description.description)
+      assert Map.has_key?(description, :__schema_version__)
     end
 
-    test "includes input requirements" do
+    test "includes required and optional fields" do
       description = CrucibleStage.describe(%{})
 
-      assert is_list(description.inputs)
+      assert is_list(description.required)
+      assert is_list(description.optional)
+      assert :request_fn in description.required
     end
 
-    test "includes output specifications" do
+    test "includes type specifications" do
       description = CrucibleStage.describe(%{})
 
-      assert is_list(description.outputs)
+      assert is_map(description.types)
+      assert Map.has_key?(description.types, :request_fn)
+      assert Map.has_key?(description.types, :strategy)
     end
 
-    test "includes config from opts" do
-      description = CrucibleStage.describe(%{strategy: :fixed, delay_ms: 100})
+    test "includes extensions with inputs and outputs" do
+      description = CrucibleStage.describe(%{})
 
-      assert description.config.strategy == :fixed
-      assert description.config.delay_ms == 100
+      assert Map.has_key?(description, :__extensions__)
+      assert Map.has_key?(description.__extensions__, :hedging)
+
+      hedging_ext = description.__extensions__.hedging
+      assert is_list(hedging_ext.inputs)
+      assert is_list(hedging_ext.outputs)
     end
   end
 
