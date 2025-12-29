@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2025-12-28
+
+### Changed
+- Updated `crucible_framework` dependency from `~> 0.5.0` to `~> 0.5.2`
+- Updated `telemetry` dependency from `~> 1.2` to `~> 1.3`
+- Updated `postgrex` dependency from `>= 0.0.0` to `>= 0.21.1`
+- Updated `supertester` dependency from `~> 0.3.1` to `~> 0.4.0`
+
 ## [0.4.0] - 2025-12-26
 
 ### Changed
