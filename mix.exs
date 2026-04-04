@@ -37,9 +37,9 @@ defmodule CrucibleHedging.MixProject do
       # Required for crucible_framework's optional persistence layer
       {:ecto_sql, "~> 3.11"},
       {:postgrex, ">= 0.21.1"},
-      {:supertester, "~> 0.4.0", only: :test},
+      {:supertester, "~> 0.5.1", only: :test},
       {:stream_data, "~> 1.0", only: :test},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
@@ -53,7 +53,7 @@ defmodule CrucibleHedging.MixProject do
     [
       name: "crucible_hedging",
       description: description(),
-      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE),
+      files: ~w(lib assets mix.exs README.md CHANGELOG.md LICENSE),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
